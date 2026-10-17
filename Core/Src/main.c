@@ -96,6 +96,10 @@ int main(void)
   MX_ADC1_Init();
   MX_USART1_UART_Init();
   /* USER CODE BEGIN 2 */
+  
+  uint32_t average=0;
+  uint32_t moving_average=0;
+  uint32_t oversampled=0;
   if(HAL_ADCEx_Calibration_Start(&hadc1)!=HAL_OK)
   {
     Error_Handler();
@@ -113,10 +117,27 @@ int main(void)
     HAL_StatusTypeDef status;
     HAL_StatusTypeDef tx_status;
     status=Light_ReadRaw(&light_value);
-    if(status==HAL_OK&&light_value<=4095)
-    {char msg[64];
-      snprintf(msg,sizeof(msg),"Light Raw:%lu\r\n",(unsigned long)light_value);
-      tx_status=HAL_UART_Transmit(&huart1,(uint8_t*)msg,strlen(msg),100);
+    HAL_StatusTypeDef status_avg=Light_ReadAverage(&average,10);
+    HAL_StatusTypeDef status_moving_avg=Light_ReadMovingAverage(&moving_average);
+    HAL_StatusTypeDef status_oversampled=Light_ReadOversampled(&oversampled);
+    if(status==HAL_OK&&status_avg==HAL_OK&&status_moving_avg==HAL_OK&&status_oversampled==HAL_OK&&light_value<=4095)
+    {char msg[96];
+    int len = snprintf(msg, sizeof(msg),
+         "Raw:%lu Avg:%lu Moving:%lu Over:%lu\r\n",
+         (unsigned long)light_value,
+         (unsigned long)average,
+         (unsigned long)moving_average,
+         (unsigned long)oversampled);
+         tx_status = HAL_UART_Transmit(
+    &huart1,
+    (uint8_t *)msg,
+    (uint16_t)len,
+    100
+);
+    if(len<0||(size_t)len>=sizeof(msg))
+    {
+      Error_Handler();
+    }
       if(tx_status != HAL_OK)
       {
        //uart发送失败时
