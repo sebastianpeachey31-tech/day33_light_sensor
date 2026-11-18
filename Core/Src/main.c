@@ -27,6 +27,7 @@
 #include "i2c_scanner.h"
 #include "oled.h"
 #include "w25q64.h"
+#include "average.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -321,7 +322,53 @@ if(log_status != HAL_OK)
     HAL_StatusTypeDef status;
     HAL_StatusTypeDef tx_status;
     status=Light_ReadRaw(&light_value);
-    HAL_StatusTypeDef status_avg=Light_ReadAverage(&average,10);
+
+    if(status != HAL_OK)
+    {
+        char error_msg[64];
+
+        int len =snprintf(
+            error_msg,
+            sizeof(error_msg),
+            "[ERROR] Light_ReadRaw failed: %d\r\n",
+            (int)status
+        );
+        if(len>0&&(size_t)len<sizeof(error_msg))
+       {
+         HAL_UART_Transmit(
+            &huart1,
+            (uint8_t *)error_msg,
+            (uint16_t)len,
+            100);
+
+         }
+       }
+    uint32_t samples[10];
+
+    HAL_StatusTypeDef status_avg = HAL_OK;
+
+    // 第一步：连续获取10次ADC采样值
+    for (int i = 0; i < 10; i++)
+    {
+        status_avg = Light_ReadRaw(&samples[i]);
+
+        if (status_avg != HAL_OK)
+        {
+            break;
+        }
+    }
+
+    // 第二步：采样全部成功后，交给纯C模块计算
+    if (status_avg == HAL_OK)
+    {
+        AverageStatus avg_result =
+            CalculateADCAverage(samples, 10, &average);
+
+        if (avg_result != AVG_OK)
+        {
+            status_avg = HAL_ERROR;
+        }
+    }
     HAL_StatusTypeDef status_moving_avg=Light_ReadMovingAverage(&moving_average);
     HAL_StatusTypeDef status_oversampled=Light_ReadOversampled(&oversampled);
     if(status==HAL_OK&&status_avg==HAL_OK&&status_moving_avg==HAL_OK&&status_oversampled==HAL_OK&&light_value<=4095)
