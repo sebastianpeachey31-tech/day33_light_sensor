@@ -1,0 +1,8 @@
+# Local dependencies supplied by CubeMX
+/Drivers/
+
+# Build outputs
+/build/
+
+# Local editor and debugger configuration
+/.vscode/

@@ -59,6 +59,7 @@ Core/Src/light_sensor.c \
 Core/Src/i2c_scanner.c \
 Core/Src/oled.c \
 Core/Src/average.c \
+Core/Src/adc_record.c \
 Core/Src/w25q64.c \
 Core/Src/syscalls.c \
 Drivers/STM32F1xx_HAL_Driver/Src/stm32f1xx_hal_i2c.c \

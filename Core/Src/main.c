@@ -28,6 +28,7 @@
 #include "oled.h"
 #include "w25q64.h"
 #include "average.h"
+#include "adc_record.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -547,53 +548,47 @@ if(flash_attempted == 0)
         if(is_empty == 0)
         {//================ 输出Flash已经保存的ADC数据 ================
 
-//第一步：还原前4字节中的RAW
-uint32_t saved_raw =
-    ((uint32_t)before_data[0]) |
-    ((uint32_t)before_data[1] << 8) |
-    ((uint32_t)before_data[2] << 16) |
-    ((uint32_t)before_data[3] << 24);
+            ADCRecord saved_record;
+            ADCRecordStatus record_status = DecodeADCRecord(
+                before_data, sizeof(before_data), &saved_record
+            );
 
-//第二步：还原后4字节中的AVG
-uint32_t saved_avg =
-    ((uint32_t)before_data[4]) |
-    ((uint32_t)before_data[5] << 8) |
-    ((uint32_t)before_data[6] << 16) |
-    ((uint32_t)before_data[7] << 24);
+            if(record_status == ADC_RECORD_DECODED_UNVERIFIED)
+            {
+                char saved_msg[80];
+                int saved_len = snprintf(
+                    saved_msg,
+                    sizeof(saved_msg),
+                    "FLASH SAVED RAW:%lu AVG:%lu\r\n",
+                    (unsigned long)saved_record.raw,
+                    (unsigned long)saved_record.avg
+                );
 
-//第三步：将整数转换为串口字符串
-char saved_msg[80];
+                if(saved_len < 0 ||
+                   (size_t)saved_len >= sizeof(saved_msg))
+                {
+                    Error_Handler();
+                }
 
-int saved_len = snprintf(
-    saved_msg,
-    sizeof(saved_msg),
-    "FLASH SAVED RAW:%lu AVG:%lu\r\n",
-    (unsigned long)saved_raw,
-    (unsigned long)saved_avg
-);
+                HAL_StatusTypeDef saved_status = HAL_UART_Transmit(
+                    &huart1,
+                    (uint8_t *)saved_msg,
+                    (uint16_t)saved_len,
+                    100
+                );
 
-//第四步：检查字符串格式化是否成功
-if(saved_len < 0 ||
-   (size_t)saved_len >= sizeof(saved_msg))
-{
-    Error_Handler();
-}
+                if(saved_status != HAL_OK)
+                {
+                    Error_Handler();
+                }
 
-//第五步：通过USART1输出
-HAL_StatusTypeDef saved_status = HAL_UART_Transmit(
-    &huart1,
-    (uint8_t *)saved_msg,
-    (uint16_t)saved_len,
-    100
-);
-
-//第六步：检查串口发送状态
-if(saved_status != HAL_OK)
-{
-    Error_Handler();
-}
-            //已有数据，跳过写入，防止覆盖
-            flash_message = "FLASH NOT EMPTY, SKIPPED\r\n";
+                flash_message = "FLASH NOT EMPTY, SKIPPED\r\n";
+            }
+            else
+            {
+                //非空但无法接受的记录也不允许覆盖
+                flash_message = "FLASH RECORD INVALID, SKIPPED\r\n";
+            }
         }
         else
         {
